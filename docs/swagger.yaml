@@ -1,0 +1,18 @@
+basePath: /api/v1
+host: localhost:8080
+info:
+  contact:
+    email: support@taskmanagement.io
+    name: API Support
+  description: Multi-user task management API with idempotency support.
+  termsOfService: http://swagger.io/terms/
+  title: Task Management API
+  version: "1.0"
+paths: {}
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -1,0 +1,8 @@
+bin/
+.env.development
+.env.production
+.DS_Store
+.vscode/
+.idea/
+tmp/
+*.out
