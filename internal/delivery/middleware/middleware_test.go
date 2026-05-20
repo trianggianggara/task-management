@@ -198,7 +198,7 @@ func TestErrorHandler_AppError(t *testing.T) {
 	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "NOT_FOUND", resp.Code)
 	assert.Equal(t, "task not found", resp.Message)
-	assert.NotEmpty(t, resp.Timestamp)
+	assert.NotEmpty(t, resp.Meta.Timestamp)
 }
 
 func TestErrorHandler_EchoHTTPError_404(t *testing.T) {
@@ -270,7 +270,7 @@ func TestErrorHandler_GenericError_Returns500(t *testing.T) {
 	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "INTERNAL_ERROR", resp.Code)
 	assert.Equal(t, "internal server error", resp.Message)
-	assert.NotEmpty(t, resp.Timestamp)
+	assert.NotEmpty(t, resp.Meta.Timestamp)
 }
 
 func TestRecover_Middleware_RecoversFromPanic(t *testing.T) {
@@ -295,7 +295,7 @@ func TestRecover_Middleware_RecoversFromPanic(t *testing.T) {
 	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "INTERNAL_ERROR", resp.Code)
 	assert.Equal(t, "internal server error", resp.Message)
-	assert.NotEmpty(t, resp.Timestamp)
+	assert.NotEmpty(t, resp.Meta.Timestamp)
 }
 
 func TestRecover_Middleware_NoPanicPassesThrough(t *testing.T) {

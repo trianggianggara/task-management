@@ -72,18 +72,16 @@ func NewMeta(requestID string) Meta {
 }
 
 type ErrorResponse struct {
-	Status    string `json:"status"`
-	Code      string `json:"code"`
-	Message   string `json:"message"`
-	Timestamp string `json:"timestamp"`
-	Meta      Meta   `json:"meta"`
+	Status  string `json:"status"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Meta    Meta   `json:"meta"`
 }
 
 func ToErrorResponse(err *AppError) ErrorResponse {
 	return ErrorResponse{
-		Status:    "error",
-		Code:      err.Code,
-		Message:   err.Message,
-		Timestamp: time.Now().UTC().Format(time.RFC3339),
+		Status:  "error",
+		Code:    err.Code,
+		Message: err.Message,
 	}
 }
