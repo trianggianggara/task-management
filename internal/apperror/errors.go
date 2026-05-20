@@ -59,11 +59,24 @@ func Internal(msg string, err error) *AppError {
 	return &AppError{Code: "INTERNAL_ERROR", Message: msg, Status: 500, Err: err}
 }
 
+type Meta struct {
+	RequestID string `json:"request_id"`
+	Timestamp string `json:"timestamp"`
+}
+
+func NewMeta(requestID string) Meta {
+	return Meta{
+		RequestID: requestID,
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
 type ErrorResponse struct {
 	Status    string `json:"status"`
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	Timestamp string `json:"timestamp"`
+	Meta      Meta   `json:"meta"`
 }
 
 func ToErrorResponse(err *AppError) ErrorResponse {

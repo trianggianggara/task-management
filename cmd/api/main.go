@@ -9,11 +9,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/labstack/echo/v4"
 	echoSwagger "github.com/swaggo/echo-swagger"
 
+	_ "task-management/docs"
 	"task-management/internal/config"
+	handler "task-management/internal/delivery/http"
 	appMiddleware "task-management/internal/delivery/middleware"
+	"task-management/internal/repository/postgres"
+	"task-management/internal/usecase"
+	"task-management/pkg/password"
 )
 
 // @title           Task Management API
@@ -25,7 +33,6 @@ import (
 // @contact.email  support@taskmanagement.io
 
 // @host           localhost:8080
-// @BasePath       /api/v1
 
 // @securityDefinitions.apikey BearerAuth
 // @in header
@@ -34,6 +41,24 @@ import (
 
 func main() {
 	cfg := config.Load()
+
+	db, err := postgres.Connect(cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+	slog.Info("database connected")
+
+	runMigrations(cfg.DatabaseURL)
+
+	userRepo := postgres.NewUserRepo(db)
+
+	hasher := password.NewBcryptHasher()
+
+	authUC := usecase.NewAuthUsecase(userRepo, hasher, cfg.JWTSecret, cfg.JWTExpiry)
+
+	authHandler := handler.NewAuthHandler(authUC)
 
 	e := echo.New()
 	e.HideBanner = true
@@ -51,8 +76,16 @@ func main() {
 	}
 
 	e.GET("/api/v1/health", func(c echo.Context) error {
+		if err := db.PingContext(c.Request().Context()); err != nil {
+			return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "unhealthy"})
+		}
 		return c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
 	})
+
+	auth := e.Group("/api/v1/auth")
+	auth.Use(appMiddleware.RateLimiter())
+	auth.POST("/register", authHandler.Register)
+	auth.POST("/login", authHandler.Login)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -74,6 +107,19 @@ func main() {
 		slog.Error("server forced to shutdown", "error", err)
 	}
 	slog.Info("server exited")
+}
+
+func runMigrations(dsn string) {
+	m, err := migrate.New("file://migrations", dsn)
+	if err != nil {
+		slog.Error("migration init failed", "error", err)
+		os.Exit(1)
+	}
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		slog.Error("migration failed", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("migrations applied")
 }
 
 func corsMiddleware() echo.MiddlewareFunc {

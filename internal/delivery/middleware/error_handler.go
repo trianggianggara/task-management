@@ -37,6 +37,7 @@ func ErrorHandler(err error, c echo.Context) {
 	}
 
 	resp := apperror.ToErrorResponse(appErr)
+	resp.Meta = apperror.NewMeta(GetRequestID(c))
 	c.JSON(appErr.Status, resp)
 }
 
