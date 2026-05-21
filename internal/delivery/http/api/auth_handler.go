@@ -113,7 +113,7 @@ func (h *AuthHandler) JoinTeam(c echo.Context) error {
 		return err
 	}
 
-	return response.Success(c, http.StatusOK, "Team joined successfully", map[string]string{})
+	return response.Success(c, http.StatusOK, "Team joined successfully", nil)
 }
 
 // @Summary     Leave team
@@ -131,5 +131,5 @@ func (h *AuthHandler) LeaveTeam(c echo.Context) error {
 		return err
 	}
 
-	return response.Success(c, http.StatusOK, "Team left successfully", map[string]string{})
+	return response.Success(c, http.StatusOK, "Team left successfully", nil)
 }

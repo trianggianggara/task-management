@@ -18,7 +18,7 @@ type SuccessResponse struct {
 	Success   bool        `json:"success"`
 	Status    int         `json:"status"`
 	Message   string      `json:"message"`
-	Data      interface{} `json:"data"`
+	Data      interface{} `json:"data,omitempty"`
 	Meta      *Meta       `json:"meta,omitempty"`
 	RequestID string      `json:"request_id"`
 	Timestamp string      `json:"timestamp"`

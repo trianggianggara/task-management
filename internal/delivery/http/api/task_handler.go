@@ -169,7 +169,7 @@ func (h *TaskHandler) Delete(c echo.Context) error {
 	if err := h.taskUC.DeleteTask(c.Request().Context(), userID, c.Param("id")); err != nil {
 		return err
 	}
-	return response.Success(c, http.StatusOK, "Task deleted successfully", map[string]string{})
+	return response.Success(c, http.StatusOK, "Task deleted successfully", nil)
 }
 
 // @Summary     Assign task
