@@ -1,27 +1,17 @@
 package main
 
 import (
-	"context"
 	"log/slog"
-	"net/http"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/labstack/echo/v4"
-	echoSwagger "github.com/swaggo/echo-swagger"
 
 	_ "task-management/docs"
 	"task-management/internal/config"
-	handler "task-management/internal/delivery/http"
-	appMiddleware "task-management/internal/delivery/middleware"
-	"task-management/internal/repository/postgres"
-	"task-management/internal/usecase"
-	"task-management/pkg/password"
+	"task-management/internal/contract"
+	"task-management/internal/delivery/http"
 )
 
 // @title           Task Management API
@@ -46,100 +36,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := postgres.Connect(cfg.DatabaseURL, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns)
+	c, stopper, err := contract.New(cfg)
 	if err != nil {
-		slog.Error("failed to connect to database", "error", err)
+		slog.Error("failed to initialize", "error", err)
 		os.Exit(1)
 	}
-	defer db.Close()
-	slog.Info("database connected")
+	if stopper != nil {
+		defer stopper()
+	}
+	defer c.Common.DB.Close()
 
 	runMigrations(cfg.DatabaseURL)
 
-	userRepo := postgres.NewUserRepo(db)
-	taskRepo := postgres.NewTaskRepo(db)
-	idempotencyRepo := postgres.NewIdempotencyRepo(db)
-	taskLogRepo := postgres.NewTaskLogRepo(db)
-
-	hasher, err := password.NewBcryptHasher(cfg.BcryptCost)
-	if err != nil {
-		slog.Error("failed to create password hasher", "error", err)
-		os.Exit(1)
-	}
-
-	authUC := usecase.NewAuthUsecase(userRepo, hasher, cfg.JWTSecret, cfg.JWTExpiry)
-	taskUC := usecase.NewTaskUsecase(db, taskRepo, idempotencyRepo, taskLogRepo, userRepo)
-
-	authHandler := handler.NewAuthHandler(authUC)
-	taskHandler := handler.NewTaskHandler(taskUC)
-
-	e := echo.New()
-	e.HideBanner = true
-	e.HidePort = true
-
-	e.Use(appMiddleware.RequestID())
-	e.Use(appMiddleware.Logger())
-	e.Use(appMiddleware.Recover())
-	e.Use(appMiddleware.BodyLimit(cfg.BodyLimitBytes))
-	e.Use(corsMiddleware())
-	e.HTTPErrorHandler = appMiddleware.ErrorHandler
-
-	if cfg.IsDevelopment() {
-		e.GET("/swagger/*", echoSwagger.WrapHandler)
-		slog.Info("swagger enabled", "url", "http://localhost:"+cfg.AppPort+"/swagger/index.html")
-	}
-
-	e.GET("/api/v1/health", func(c echo.Context) error {
-		if err := db.PingContext(c.Request().Context()); err != nil {
-			return c.JSON(http.StatusServiceUnavailable, map[string]string{"status": "unhealthy"})
-		}
-		return c.JSON(http.StatusOK, map[string]string{"status": "healthy"})
-	})
-
-	auth := e.Group("/api/v1/auth")
-	auth.Use(appMiddleware.RateLimiter(context.Background(), cfg.RateLimitRPS, cfg.RateLimitBurst))
-	auth.POST("/register", authHandler.Register)
-	auth.POST("/login", authHandler.Login)
-
-	tasks := e.Group("/api/v1/tasks")
-	tasks.Use(appMiddleware.Auth(cfg.JWTSecret))
-	tasks.POST("", taskHandler.Create)
-	tasks.GET("", taskHandler.List)
-	tasks.GET("/:id", taskHandler.Get)
-	tasks.PUT("/:id", taskHandler.Update)
-	tasks.DELETE("/:id", taskHandler.Delete)
-	tasks.POST("/:id/assign", taskHandler.Assign)
-
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			if err := idempotencyRepo.PurgeExpired(context.Background()); err != nil {
-				slog.Warn("failed to purge expired idempotency keys", "error", err)
-			}
-		}
-	}()
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	go func() {
-		addr := ":" + cfg.AppPort
-		slog.Info("server starting", "address", addr, "environment", cfg.Environment)
-		if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
-			slog.Error("server shutdown", "error", err)
-		}
-	}()
-
-	<-ctx.Done()
-	slog.Info("server shutting down")
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	if err := e.Shutdown(shutdownCtx); err != nil {
-		slog.Error("server forced to shutdown", "error", err)
-	}
-	slog.Info("server exited")
+	http.New(cfg, c).Start()
 }
 
 func runMigrations(dsn string) {
@@ -155,21 +64,4 @@ func runMigrations(dsn string) {
 		os.Exit(1)
 	}
 	slog.Info("migrations applied")
-}
-
-func corsMiddleware() echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			c.Response().Header().Set("Access-Control-Allow-Origin", "*")
-			c.Response().Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			c.Response().Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, Idempotency-Key, X-Request-ID")
-			c.Response().Header().Set("Access-Control-Max-Age", "86400")
-
-			if c.Request().Method == http.MethodOptions {
-				return c.NoContent(http.StatusNoContent)
-			}
-
-			return next(c)
-		}
-	}
 }

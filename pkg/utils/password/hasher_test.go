@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"task-management/pkg/password"
+	"task-management/pkg/utils/password"
 )
 
 func TestBcryptHasher_Hash_and_Verify(t *testing.T) {

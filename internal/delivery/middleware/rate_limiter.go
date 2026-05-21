@@ -7,7 +7,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"golang.org/x/time/rate"
-	"task-management/internal/apperror"
+	"task-management/pkg/utils/response"
 )
 
 func RateLimiter(ctx context.Context, rps, burst int) echo.MiddlewareFunc {
@@ -54,7 +54,7 @@ func RateLimiter(ctx context.Context, rps, burst int) echo.MiddlewareFunc {
 			mu.Unlock()
 
 			if !cl.limiter.Allow() {
-				return apperror.TooManyRequests("rate limit exceeded, try again later")
+				return response.TooManyRequests("rate limit exceeded, try again later")
 			}
 
 			return next(c)

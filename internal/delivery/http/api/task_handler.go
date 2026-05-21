@@ -1,4 +1,4 @@
-package http
+package api
 
 import (
 	"net/http"
@@ -6,7 +6,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
-	"task-management/internal/apperror"
+	"task-management/pkg/utils/response"
+	"task-management/internal/delivery/http/dto"
 	"task-management/internal/delivery/middleware"
 	"task-management/internal/usecase"
 )
@@ -30,23 +31,26 @@ func NewTaskHandler(taskUC usecase.TaskUsecase) *TaskHandler {
 // @Accept      json
 // @Produce     json
 // @Param       Idempotency-Key header string false "Idempotency key (UUID v4)"
-// @Param       request body CreateTaskRequest true "Create task payload"
-// @Success     201 {object} SuccessResponse{data=TaskResponse}
-// @Failure     400 {object} apperror.ErrorResponse
-// @Failure     401 {object} apperror.ErrorResponse
-// @Failure     422 {object} apperror.ErrorResponse
+// @Param       request body dto.CreateTaskRequest true "Create task payload"
+// @Success     201 {object} object
+// @Failure     400 {object} object
+// @Failure     401 {object} object
+// @Failure     422 {object} object
 // @Router      /api/v1/tasks [post]
 func (h *TaskHandler) Create(c echo.Context) error {
-	var req CreateTaskRequest
+	var req dto.CreateTaskRequest
 	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("invalid request body")
+		return response.BadRequest("invalid request body")
 	}
 	if err := h.validator.Struct(req); err != nil {
-		return apperror.ValidationError(err.Error())
+		return response.ValidationError(err.Error())
 	}
 
 	userID := middleware.GetUserID(c)
 	idempotencyKey := c.Request().Header.Get("Idempotency-Key")
+	if idempotencyKey == "" {
+		return response.BadRequest("Idempotency-Key header is required")
+	}
 
 	input := usecase.CreateTaskInput{
 		Title:       req.Title,
@@ -58,7 +62,7 @@ func (h *TaskHandler) Create(c echo.Context) error {
 		return err
 	}
 
-	return Success(c, http.StatusCreated, "Task created successfully", ToTaskResponse(task))
+	return response.Success(c, http.StatusCreated, "Task created successfully", dto.ToTaskResponse(task))
 }
 
 // @Summary     List tasks
@@ -67,12 +71,12 @@ func (h *TaskHandler) Create(c echo.Context) error {
 // @Security    BearerAuth
 // @Accept      json
 // @Produce     json
-// @Param       status query string false "Filter by status (pending, in_progress, completed)"
+// @Param       status query string false "Filter: pending, in_progress, completed"
 // @Param       search query string false "Search by title"
 // @Param       page query int false "Page number" default(1)
 // @Param       limit query int false "Items per page" default(10)
-// @Success     200 {object} PaginatedResponse{data=[]TaskResponse}
-// @Failure     401 {object} apperror.ErrorResponse
+// @Success     200 {object} object
+// @Failure     401 {object} object
 // @Router      /api/v1/tasks [get]
 func (h *TaskHandler) List(c echo.Context) error {
 	userID := middleware.GetUserID(c)
@@ -82,24 +86,17 @@ func (h *TaskHandler) List(c echo.Context) error {
 	status := c.QueryParam("status")
 	search := c.QueryParam("search")
 
-	tasks, total, err := h.taskUC.ListTasks(c.Request().Context(), userID, status, search, page, limit)
+	result, err := h.taskUC.ListTasks(c.Request().Context(), userID, status, search, page, limit)
 	if err != nil {
 		return err
 	}
 
-	result := make([]TaskResponse, len(tasks))
-	for i, t := range tasks {
-		result[i] = ToTaskResponse(&t)
+	taskList := make([]dto.TaskResponse, len(result.Tasks))
+	for i, t := range result.Tasks {
+		taskList[i] = dto.ToTaskResponse(&t)
 	}
 
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 10
-	}
-
-	return Paginated(c, "Tasks retrieved successfully", result, page, limit, total)
+	return response.Paginated(c, "Tasks retrieved successfully", taskList, result.Page, result.Limit, result.Total)
 }
 
 // @Summary     Get task
@@ -109,36 +106,36 @@ func (h *TaskHandler) List(c echo.Context) error {
 // @Accept      json
 // @Produce     json
 // @Param       id path string true "Task ID"
-// @Success     200 {object} SuccessResponse{data=TaskResponse}
-// @Failure     404 {object} apperror.ErrorResponse
+// @Success     200 {object} object
+// @Failure     404 {object} object
 // @Router      /api/v1/tasks/{id} [get]
 func (h *TaskHandler) Get(c echo.Context) error {
-	task, err := h.taskUC.GetTask(c.Request().Context(), c.Param("id"))
+	task, err := h.taskUC.GetTask(c.Request().Context(), middleware.GetUserID(c), c.Param("id"))
 	if err != nil {
 		return err
 	}
-	return Success(c, http.StatusOK, "Task retrieved successfully", ToTaskResponse(task))
+	return response.Success(c, http.StatusOK, "Task updated successfully", dto.ToTaskResponse(task))
 }
 
 // @Summary     Update task
-// @Description Update task fields (title, description, status). Only the task owner can update.
+// @Description Partial update — only send fields you want to change. Status: pending, in_progress, completed. Example: update just status without title/description.
 // @Tags        tasks
 // @Security    BearerAuth
 // @Accept      json
 // @Produce     json
 // @Param       id path string true "Task ID"
-// @Param       request body UpdateTaskRequest true "Update payload"
-// @Success     200 {object} SuccessResponse{data=TaskResponse}
-// @Failure     403 {object} apperror.ErrorResponse
-// @Failure     404 {object} apperror.ErrorResponse
+// @Param       request body dto.UpdateTaskRequest true "Status: pending, in_progress, completed"
+// @Success     200 {object} object
+// @Failure     403 {object} object
+// @Failure     404 {object} object
 // @Router      /api/v1/tasks/{id} [put]
 func (h *TaskHandler) Update(c echo.Context) error {
-	var req UpdateTaskRequest
+	var req dto.UpdateTaskRequest
 	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("invalid request body")
+		return response.BadRequest("invalid request body")
 	}
 	if err := h.validator.Struct(req); err != nil {
-		return apperror.ValidationError(err.Error())
+		return response.ValidationError(err.Error())
 	}
 
 	userID := middleware.GetUserID(c)
@@ -153,7 +150,7 @@ func (h *TaskHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	return Success(c, http.StatusOK, "Task updated successfully", ToTaskResponse(task))
+	return response.Success(c, http.StatusOK, "Task updated successfully", dto.ToTaskResponse(task))
 }
 
 // @Summary     Delete task
@@ -163,16 +160,16 @@ func (h *TaskHandler) Update(c echo.Context) error {
 // @Accept      json
 // @Produce     json
 // @Param       id path string true "Task ID"
-// @Success     200 {object} SuccessResponse
-// @Failure     403 {object} apperror.ErrorResponse
-// @Failure     404 {object} apperror.ErrorResponse
+// @Success     200 {object} object
+// @Failure     403 {object} object
+// @Failure     404 {object} object
 // @Router      /api/v1/tasks/{id} [delete]
 func (h *TaskHandler) Delete(c echo.Context) error {
 	userID := middleware.GetUserID(c)
 	if err := h.taskUC.DeleteTask(c.Request().Context(), userID, c.Param("id")); err != nil {
 		return err
 	}
-	return Success(c, http.StatusOK, "Task deleted successfully", nil)
+	return response.Success(c, http.StatusOK, "Task deleted successfully", map[string]string{})
 }
 
 // @Summary     Assign task
@@ -182,18 +179,18 @@ func (h *TaskHandler) Delete(c echo.Context) error {
 // @Accept      json
 // @Produce     json
 // @Param       id path string true "Task ID"
-// @Param       request body AssignTaskRequest true "Assign payload"
-// @Success     200 {object} SuccessResponse{data=TaskResponse}
-// @Failure     403 {object} apperror.ErrorResponse
-// @Failure     404 {object} apperror.ErrorResponse
+// @Param       request body dto.AssignTaskRequest true "Assign payload"
+// @Success     200 {object} object
+// @Failure     403 {object} object
+// @Failure     404 {object} object
 // @Router      /api/v1/tasks/{id}/assign [post]
 func (h *TaskHandler) Assign(c echo.Context) error {
-	var req AssignTaskRequest
+	var req dto.AssignTaskRequest
 	if err := c.Bind(&req); err != nil {
-		return apperror.BadRequest("invalid request body")
+		return response.BadRequest("invalid request body")
 	}
 	if err := h.validator.Struct(req); err != nil {
-		return apperror.ValidationError(err.Error())
+		return response.ValidationError(err.Error())
 	}
 
 	userID := middleware.GetUserID(c)
@@ -201,10 +198,10 @@ func (h *TaskHandler) Assign(c echo.Context) error {
 		return err
 	}
 
-	task, err := h.taskUC.GetTask(c.Request().Context(), c.Param("id"))
+	task, err := h.taskUC.GetTask(c.Request().Context(), middleware.GetUserID(c), c.Param("id"))
 	if err != nil {
 		return err
 	}
 
-	return Success(c, http.StatusOK, "Task assigned successfully", ToTaskResponse(task))
+	return response.Success(c, http.StatusOK, "Task updated successfully", dto.ToTaskResponse(task))
 }

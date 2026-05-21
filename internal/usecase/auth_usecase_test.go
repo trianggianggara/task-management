@@ -29,6 +29,14 @@ func (m *mockUserRepo) FindByID(ctx context.Context, id string) (*domain.User, e
 	return m.findByIDFunc(ctx, id)
 }
 
+func (m *mockUserRepo) UpdateTeamID(ctx context.Context, userID string, teamID *string) error {
+	return nil
+}
+
+func (m *mockUserRepo) FindTeamByCode(ctx context.Context, code string) (*domain.Team, error) {
+	return &domain.Team{ID: "team-1", Code: code, Name: "Test Team"}, nil
+}
+
 type mockPasswordHasher struct {
 	hashFunc   func(plain string) (string, error)
 	verifyFunc func(plain, hashed string) error

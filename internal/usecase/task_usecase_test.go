@@ -14,6 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type stubTxManager struct{}
+
+func (m *stubTxManager) Run(ctx context.Context, fn func(tx *sqlx.Tx) error) error {
+	return fn(nil)
+}
+
 type stubTaskRepo struct {
 	tasks map[string]*domain.Task
 	mu    sync.Mutex
@@ -166,6 +172,17 @@ func (s *stubUserRepoForTask) FindByID(ctx context.Context, id string) (*domain.
 	return u, nil
 }
 
+func (s *stubUserRepoForTask) UpdateTeamID(ctx context.Context, userID string, teamID *string) error {
+	if u, ok := s.users[userID]; ok {
+		u.TeamID = teamID
+	}
+	return nil
+}
+
+func (s *stubUserRepoForTask) FindTeamByCode(ctx context.Context, code string) (*domain.Team, error) {
+	return &domain.Team{ID: "team-1", Code: code, Name: "Test"}, nil
+}
+
 func strPtr(s string) *string { return &s }
 
 func setupTaskUsecase() (usecase.TaskUsecase, *stubTaskRepo, *stubIdempotencyRepo) {
@@ -173,16 +190,16 @@ func setupTaskUsecase() (usecase.TaskUsecase, *stubTaskRepo, *stubIdempotencyRep
 	idempRepo := newStubIdempotencyRepo()
 	taskLogRepo := &stubTaskLogRepoForTask{}
 	userRepo := newStubUserRepoForTask()
-	uc := usecase.NewTaskUsecase(nil, taskRepo, idempRepo, taskLogRepo, userRepo)
+	uc := usecase.NewTaskUsecase(&stubTxManager{}, taskRepo, idempRepo, taskLogRepo, userRepo)
 	return uc, taskRepo, idempRepo
 }
 
-func TestCreateTask_NoIdempotencyKey(t *testing.T) {
+func TestCreateTask_Success(t *testing.T) {
 	uc, _, _ := setupTaskUsecase()
 
 	task, isNew, err := uc.CreateTask(context.Background(), "user-1", usecase.CreateTaskInput{
 		Title: "Test Task", Description: "Test",
-	}, "")
+	}, "550e8400-e29b-41d4-a716-446655440001")
 
 	require.NoError(t, err)
 	assert.True(t, isNew)
@@ -214,7 +231,7 @@ func TestCreateTask_ConcurrentIdempotency(t *testing.T) {
 	taskRepo := newStubTaskRepo()
 	idempRepo := newStubIdempotencyRepo()
 
-	uc := usecase.NewTaskUsecase(nil, taskRepo, idempRepo, &stubTaskLogRepoForTask{}, newStubUserRepoForTask())
+	uc := usecase.NewTaskUsecase(&stubTxManager{}, taskRepo, idempRepo, &stubTaskLogRepoForTask{}, newStubUserRepoForTask())
 
 	key := "concurrent-key"
 	input := usecase.CreateTaskInput{Title: "Concurrent", Description: "Test"}
@@ -260,16 +277,18 @@ func TestCreateTask_ConcurrentIdempotency(t *testing.T) {
 func TestListTasks_Empty(t *testing.T) {
 	uc, _, _ := setupTaskUsecase()
 
-	tasks, total, err := uc.ListTasks(context.Background(), "user-1", "", "", 1, 10)
+	result, err := uc.ListTasks(context.Background(), "user-1", "", "", 1, 10)
 	require.NoError(t, err)
-	assert.Empty(t, tasks)
-	assert.Equal(t, int64(0), total)
+	assert.Empty(t, result.Tasks)
+	assert.Equal(t, int64(0), result.Total)
+	assert.Equal(t, 1, result.Page)
+	assert.Equal(t, 10, result.Limit)
 }
 
 func TestGetTask_NotFound(t *testing.T) {
 	uc, _, _ := setupTaskUsecase()
 
-	_, err := uc.GetTask(context.Background(), "nonexistent")
+	_, err := uc.GetTask(context.Background(), "user-1", "nonexistent")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "task not found")
 }
@@ -314,7 +333,85 @@ func TestDeleteTask_Success(t *testing.T) {
 	err := uc.DeleteTask(context.Background(), "user-1", "task-1")
 	require.NoError(t, err)
 
-	_, err = uc.GetTask(context.Background(), "task-1")
+	_, err = uc.GetTask(context.Background(), "user-1", "task-1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "task not found")
+}
+
+func TestAssignTask_Success(t *testing.T) {
+	uc, taskRepo, _ := setupTaskUsecase()
+
+	taskRepo.Create(context.Background(), nil, &domain.Task{
+		ID: "task-1", UserID: "user-1", Title: "Assign me", Status: domain.TaskStatusPending,
+	})
+
+	err := uc.AssignTask(context.Background(), "user-1", "task-1", "user-2")
+	require.NoError(t, err)
+
+	task, _ := uc.GetTask(context.Background(), "user-1", "task-1")
+	require.NotNil(t, task)
+	assert.Equal(t, "user-2", *task.AssigneeID)
+}
+
+func TestAssignTask_WrongTeam(t *testing.T) {
+	uc, taskRepo, _ := setupTaskUsecase()
+
+	taskRepo.Create(context.Background(), nil, &domain.Task{
+		ID: "task-1", UserID: "user-1", Title: "Assign me", Status: domain.TaskStatusPending,
+	})
+
+	err := uc.AssignTask(context.Background(), "user-1", "task-1", "user-3")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "assignee must be in the same team")
+}
+
+func TestAssignTask_OwnerHasNoTeam(t *testing.T) {
+	taskRepo := newStubTaskRepo()
+	userRepo := &stubUserRepoForTask{
+		users: map[string]*domain.User{
+			"user-1": {ID: "user-1", TeamID: nil},
+			"user-2": {ID: "user-2", TeamID: strPtr("team-1")},
+		},
+	}
+	uc := usecase.NewTaskUsecase(&stubTxManager{}, taskRepo, newStubIdempotencyRepo(), &stubTaskLogRepoForTask{}, userRepo)
+
+	taskRepo.Create(context.Background(), nil, &domain.Task{
+		ID: "task-1", UserID: "user-1", Title: "No team", Status: domain.TaskStatusPending,
+	})
+
+	err := uc.AssignTask(context.Background(), "user-1", "task-1", "user-2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "you must join a team before assigning tasks")
+}
+
+func TestAssignTask_SelfAssign(t *testing.T) {
+	uc, taskRepo, _ := setupTaskUsecase()
+
+	taskRepo.Create(context.Background(), nil, &domain.Task{
+		ID: "task-1", UserID: "user-1", Title: "Assign me", Status: domain.TaskStatusPending,
+	})
+
+	err := uc.AssignTask(context.Background(), "user-1", "task-1", "user-1")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot assign task to yourself")
+}
+
+func TestAssignTask_TaskNotFound(t *testing.T) {
+	uc, _, _ := setupTaskUsecase()
+
+	err := uc.AssignTask(context.Background(), "user-1", "nonexistent", "user-2")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "task not found")
+}
+
+func TestAssignTask_AssigneeNotFound(t *testing.T) {
+	uc, taskRepo, _ := setupTaskUsecase()
+
+	taskRepo.Create(context.Background(), nil, &domain.Task{
+		ID: "task-1", UserID: "user-1", Title: "Assign me", Status: domain.TaskStatusPending,
+	})
+
+	err := uc.AssignTask(context.Background(), "user-1", "task-1", "user-999")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "assignee not found")
 }

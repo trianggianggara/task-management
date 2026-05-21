@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
+	appMiddleware "task-management/internal/delivery/middleware"
+	"task-management/pkg/utils/response"
+
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"task-management/internal/apperror"
-	appMiddleware "task-management/internal/delivery/middleware"
 )
 
 func TestRequestID_Middleware_GeneratesUUID(t *testing.T) {
@@ -130,7 +130,7 @@ func TestLogger_Middleware_WarnFor4xx(t *testing.T) {
 	}
 
 	wrapped := handler(func(c echo.Context) error {
-		return c.JSON(http.StatusNotFound, apperror.ToErrorResponse(apperror.NotFound("not found")))
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
 	})
 
 	err := wrapped(c)
@@ -170,7 +170,7 @@ func TestLogger_Middleware_ErrorFor5xx(t *testing.T) {
 	}
 
 	wrapped := handler(func(c echo.Context) error {
-		return c.JSON(http.StatusInternalServerError, apperror.ToErrorResponse(apperror.Internal("boom", nil)))
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "boom"})
 	})
 
 	err := wrapped(c)
@@ -190,17 +190,16 @@ func TestErrorHandler_AppError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 
-	appMiddleware.ErrorHandler(apperror.NotFound("task not found"), c)
+	appMiddleware.ErrorHandler(response.NotFound("task not found"), c)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	var resp apperror.ErrorResponse
+	var resp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 
-	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "NOT_FOUND", resp.Code)
 	assert.Equal(t, "task not found", resp.Message)
-	assert.NotEmpty(t, resp.Meta.Timestamp)
+	assert.NotEmpty(t, resp.Timestamp)
 }
 
 func TestErrorHandler_EchoHTTPError_404(t *testing.T) {
@@ -214,10 +213,9 @@ func TestErrorHandler_EchoHTTPError_404(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	var resp apperror.ErrorResponse
+	var resp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 
-	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "NOT_FOUND", resp.Code)
 	assert.NotEmpty(t, resp.Message)
 }
@@ -248,7 +246,7 @@ func TestErrorHandler_EchoHTTPError_AllStatusCodes(t *testing.T) {
 
 			appMiddleware.ErrorHandler(tt.httpError, c)
 
-			var resp apperror.ErrorResponse
+			var resp response.ErrorResponse
 			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Equal(t, tt.wantCode, resp.Code)
 		})
@@ -266,13 +264,12 @@ func TestErrorHandler_GenericError_Returns500(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-	var resp apperror.ErrorResponse
+	var resp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 
-	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "INTERNAL_ERROR", resp.Code)
 	assert.Equal(t, "internal server error", resp.Message)
-	assert.NotEmpty(t, resp.Meta.Timestamp)
+	assert.NotEmpty(t, resp.Timestamp)
 }
 
 func TestRecover_Middleware_RecoversFromPanic(t *testing.T) {
@@ -291,13 +288,12 @@ func TestRecover_Middleware_RecoversFromPanic(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
-	var resp apperror.ErrorResponse
+	var resp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 
-	assert.Equal(t, "error", resp.Status)
 	assert.Equal(t, "INTERNAL_ERROR", resp.Code)
 	assert.Equal(t, "internal server error", resp.Message)
-	assert.NotEmpty(t, resp.Meta.Timestamp)
+	assert.NotEmpty(t, resp.Timestamp)
 }
 
 func TestRecover_Middleware_NoPanicPassesThrough(t *testing.T) {
@@ -360,7 +356,7 @@ func TestAuth_Middleware_ReturnsAppError_NoHeader(t *testing.T) {
 	err := handler(c)
 	require.Error(t, err)
 
-	var appErr *apperror.AppError
+	var appErr *response.APIError
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, 401, appErr.Status)
 	assert.Equal(t, "UNAUTHORIZED", appErr.Code)
@@ -381,7 +377,7 @@ func TestAuth_Middleware_ReturnsAppError_InvalidToken(t *testing.T) {
 	err := handler(c)
 	require.Error(t, err)
 
-	var appErr *apperror.AppError
+	var appErr *response.APIError
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, 401, appErr.Status)
 }
@@ -407,7 +403,7 @@ func TestRateLimiter_ReturnsAppError(t *testing.T) {
 	err := handler(c)
 	require.Error(t, err)
 
-	var appErr *apperror.AppError
+	var appErr *response.APIError
 	require.ErrorAs(t, err, &appErr)
 	assert.Equal(t, 429, appErr.Status)
 	assert.Equal(t, "TOO_MANY_REQUESTS", appErr.Code)

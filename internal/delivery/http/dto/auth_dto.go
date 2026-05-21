@@ -1,4 +1,4 @@
-package http
+package dto
 
 import (
 	"time"
@@ -28,6 +28,10 @@ type UserResponse struct {
 	Name      string  `json:"name"`
 	TeamID    *string `json:"team_id,omitempty"`
 	CreatedAt string  `json:"created_at"`
+}
+
+type JoinTeamRequest struct {
+	Code string `json:"code" validate:"required,min=2,max=20"`
 }
 
 func ToUserResponse(u *domain.User) UserResponse {

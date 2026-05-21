@@ -1,22 +1,4 @@
 definitions:
-  apperror.ErrorResponse:
-    properties:
-      code:
-        type: string
-      message:
-        type: string
-      meta:
-        $ref: '#/definitions/apperror.Meta'
-      status:
-        type: string
-    type: object
-  apperror.Meta:
-    properties:
-      request_id:
-        type: string
-      timestamp:
-        type: string
-    type: object
   domain.TaskStatus:
     enum:
     - pending
@@ -27,21 +9,14 @@ definitions:
     - TaskStatusPending
     - TaskStatusInProgress
     - TaskStatusCompleted
-  http.AssignTaskRequest:
+  dto.AssignTaskRequest:
     properties:
       user_id:
         type: string
     required:
     - user_id
     type: object
-  http.AuthResponse:
-    properties:
-      token:
-        type: string
-      user:
-        $ref: '#/definitions/http.UserResponse'
-    type: object
-  http.CreateTaskRequest:
+  dto.CreateTaskRequest:
     properties:
       description:
         maxLength: 1000
@@ -53,7 +28,16 @@ definitions:
     required:
     - title
     type: object
-  http.LoginRequest:
+  dto.JoinTeamRequest:
+    properties:
+      code:
+        maxLength: 20
+        minLength: 2
+        type: string
+    required:
+    - code
+    type: object
+  dto.LoginRequest:
     properties:
       email:
         type: string
@@ -63,30 +47,7 @@ definitions:
     - email
     - password
     type: object
-  http.PaginatedResponse:
-    properties:
-      data: {}
-      message:
-        type: string
-      meta:
-        $ref: '#/definitions/apperror.Meta'
-      pagination:
-        $ref: '#/definitions/http.PaginationMeta'
-      status:
-        type: string
-    type: object
-  http.PaginationMeta:
-    properties:
-      limit:
-        type: integer
-      page:
-        type: integer
-      total:
-        type: integer
-      total_pages:
-        type: integer
-    type: object
-  http.RegisterRequest:
+  dto.RegisterRequest:
     properties:
       email:
         type: string
@@ -102,36 +63,7 @@ definitions:
     - name
     - password
     type: object
-  http.SuccessResponse:
-    properties:
-      data: {}
-      message:
-        type: string
-      meta:
-        $ref: '#/definitions/apperror.Meta'
-      status:
-        type: string
-    type: object
-  http.TaskResponse:
-    properties:
-      assignee_id:
-        type: string
-      created_at:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      status:
-        $ref: '#/definitions/domain.TaskStatus'
-      title:
-        type: string
-      updated_at:
-        type: string
-      user_id:
-        type: string
-    type: object
-  http.UpdateTaskRequest:
+  dto.UpdateTaskRequest:
     properties:
       description:
         maxLength: 1000
@@ -146,19 +78,6 @@ definitions:
       title:
         maxLength: 255
         minLength: 1
-        type: string
-    type: object
-  http.UserResponse:
-    properties:
-      created_at:
-        type: string
-      email:
-        type: string
-      id:
-        type: string
-      name:
-        type: string
-      team_id:
         type: string
     type: object
 host: localhost:8080
@@ -182,35 +101,30 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/http.LoginRequest'
+          $ref: '#/definitions/dto.LoginRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/http.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/http.AuthResponse'
-              type: object
+            type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "422":
           description: Unprocessable Entity
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       summary: Login
       tags:
       - auth
@@ -225,36 +139,88 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/http.RegisterRequest'
+          $ref: '#/definitions/dto.RegisterRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            allOf:
-            - $ref: '#/definitions/http.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/http.AuthResponse'
-              type: object
+            type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "409":
           description: Conflict
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "422":
           description: Unprocessable Entity
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "429":
           description: Too Many Requests
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       summary: Register new user
+      tags:
+      - auth
+  /api/v1/auth/team:
+    delete:
+      consumes:
+      - application/json
+      description: Leave current team
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Leave team
+      tags:
+      - auth
+    put:
+      consumes:
+      - application/json
+      description: 'Join a team by code. Available: ENG (Engineering), DSG (Design),
+        PDT (Product)'
+      parameters:
+      - description: 'codes: ENG, DSG, PDT'
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/dto.JoinTeamRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Join team
       tags:
       - auth
   /api/v1/tasks:
@@ -264,7 +230,7 @@ paths:
       description: List tasks with optional filtering by status, search by title,
         and pagination
       parameters:
-      - description: Filter by status (pending, in_progress, completed)
+      - description: 'Filter: pending, in_progress, completed'
         in: query
         name: status
         type: string
@@ -288,18 +254,11 @@ paths:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/http.PaginatedResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/http.TaskResponse'
-                  type: array
-              type: object
+            type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       security:
       - BearerAuth: []
       summary: List tasks
@@ -319,31 +278,26 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/http.CreateTaskRequest'
+          $ref: '#/definitions/dto.CreateTaskRequest'
       produces:
       - application/json
       responses:
         "201":
           description: Created
           schema:
-            allOf:
-            - $ref: '#/definitions/http.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/http.TaskResponse'
-              type: object
+            type: object
         "400":
           description: Bad Request
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "422":
           description: Unprocessable Entity
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       security:
       - BearerAuth: []
       summary: Create task
@@ -366,15 +320,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/http.SuccessResponse'
+            type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       security:
       - BearerAuth: []
       summary: Delete task
@@ -396,16 +350,11 @@ paths:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/http.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/http.TaskResponse'
-              type: object
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       security:
       - BearerAuth: []
       summary: Get task
@@ -414,40 +363,35 @@ paths:
     put:
       consumes:
       - application/json
-      description: Update task fields (title, description, status). Only the task
-        owner can update.
+      description: 'Partial update — only send fields you want to change. Status:
+        pending, in_progress, completed. Example: update just status without title/description.'
       parameters:
       - description: Task ID
         in: path
         name: id
         required: true
         type: string
-      - description: Update payload
+      - description: 'Status: pending, in_progress, completed'
         in: body
         name: request
         required: true
         schema:
-          $ref: '#/definitions/http.UpdateTaskRequest'
+          $ref: '#/definitions/dto.UpdateTaskRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/http.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/http.TaskResponse'
-              type: object
+            type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       security:
       - BearerAuth: []
       summary: Update task
@@ -470,27 +414,22 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/http.AssignTaskRequest'
+          $ref: '#/definitions/dto.AssignTaskRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/http.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/http.TaskResponse'
-              type: object
+            type: object
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/apperror.ErrorResponse'
+            type: object
       security:
       - BearerAuth: []
       summary: Assign task

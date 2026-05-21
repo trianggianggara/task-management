@@ -1,4 +1,4 @@
-package http_test
+package api_test
 
 import (
 	"context"
@@ -8,14 +8,15 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v4"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"task-management/internal/apperror"
-	handler "task-management/internal/delivery/http"
+	"task-management/internal/delivery/http/api"
 	appMiddleware "task-management/internal/delivery/middleware"
 	"task-management/internal/domain"
 	"task-management/internal/usecase"
+	"task-management/pkg/utils/response"
+
+	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type stubUserRepo struct{}
@@ -37,6 +38,14 @@ func (s *stubUserRepo) FindByEmail(ctx context.Context, email string) (*domain.U
 
 func (s *stubUserRepo) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	return &domain.User{ID: id, Email: "test@example.com", Name: "Test"}, nil
+}
+
+func (s *stubUserRepo) UpdateTeamID(ctx context.Context, userID string, teamID *string) error {
+	return nil
+}
+
+func (s *stubUserRepo) FindTeamByCode(ctx context.Context, code string) (*domain.Team, error) {
+	return &domain.Team{ID: "team-1", Code: code, Name: "Test"}, nil
 }
 
 type stubPasswordService struct{}
@@ -62,7 +71,7 @@ func setupTestEcho() *echo.Echo {
 	e.Use(appMiddleware.RequestID())
 
 	uc := usecase.NewAuthUsecase(&stubUserRepo{}, &stubPasswordService{}, "test-secret", 24)
-	h := handler.NewAuthHandler(uc)
+	h := api.NewAuthHandler(uc)
 
 	e.POST("/api/v1/auth/register", h.Register)
 	e.POST("/api/v1/auth/login", h.Login)
@@ -82,12 +91,10 @@ func TestRegisterHandler_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, rec.Code)
 
-	var resp handler.SuccessResponse
+	var resp response.SuccessResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "success", resp.Status)
-	assert.Equal(t, "User registered successfully", resp.Message)
-	assert.NotEmpty(t, resp.Meta.RequestID)
-	assert.NotEmpty(t, resp.Meta.Timestamp)
+	assert.NotEmpty(t, resp.RequestID)
+	assert.NotEmpty(t, resp.Timestamp)
 
 	authResp, ok := resp.Data.(map[string]interface{})
 	require.True(t, ok)
@@ -110,9 +117,9 @@ func TestRegisterHandler_DuplicateEmail(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, rec.Code)
 
-	var errResp apperror.ErrorResponse
+	var errResp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errResp))
-	assert.Equal(t, "error", errResp.Status)
+
 	assert.Equal(t, "CONFLICT", errResp.Code)
 }
 
@@ -128,7 +135,7 @@ func TestRegisterHandler_InvalidBody(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 
-	var errResp apperror.ErrorResponse
+	var errResp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errResp))
 	assert.Equal(t, "VALIDATION_ERROR", errResp.Code)
 }
@@ -157,11 +164,9 @@ func TestLoginHandler_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	var resp handler.SuccessResponse
+	var resp response.SuccessResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	assert.Equal(t, "success", resp.Status)
-	assert.Equal(t, "Login successful", resp.Message)
-	assert.NotEmpty(t, resp.Meta.RequestID)
+	assert.NotEmpty(t, resp.RequestID)
 
 	authResp, ok := resp.Data.(map[string]interface{})
 	require.True(t, ok)
@@ -180,7 +185,7 @@ func TestLoginHandler_WrongPassword(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var errResp apperror.ErrorResponse
+	var errResp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errResp))
 	assert.Equal(t, "UNAUTHORIZED", errResp.Code)
 }
@@ -214,7 +219,7 @@ func TestUnauthenticatedRequest(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
 
-	var errResp apperror.ErrorResponse
+	var errResp response.ErrorResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errResp))
 	assert.Equal(t, "UNAUTHORIZED", errResp.Code)
 }

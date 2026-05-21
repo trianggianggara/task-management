@@ -39,7 +39,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.LoginRequest"
+                            "$ref": "#/definitions/dto.LoginRequest"
                         }
                     }
                 ],
@@ -47,43 +47,31 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/http.AuthResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -109,7 +97,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.RegisterRequest"
+                            "$ref": "#/definitions/dto.RegisterRequest"
                         }
                     }
                 ],
@@ -117,43 +105,120 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/http.AuthResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "409": {
                         "description": "Conflict",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "429": {
                         "description": "Too Many Requests",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/team": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Join a team by code. Available: ENG (Engineering), DSG (Design), PDT (Product)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Join team",
+                "parameters": [
+                    {
+                        "description": "codes: ENG, DSG, PDT",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.JoinTeamRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Leave current team",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Leave team",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object"
                         }
                     }
                 }
@@ -180,7 +245,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Filter by status (pending, in_progress, completed)",
+                        "description": "Filter: pending, in_progress, completed",
                         "name": "status",
                         "in": "query"
                     },
@@ -209,28 +274,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.PaginatedResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/definitions/http.TaskResponse"
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -265,7 +315,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.CreateTaskRequest"
+                            "$ref": "#/definitions/dto.CreateTaskRequest"
                         }
                     }
                 ],
@@ -273,37 +323,25 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/http.TaskResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "422": {
                         "description": "Unprocessable Entity",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -340,25 +378,13 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/http.TaskResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -369,7 +395,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Update task fields (title, description, status). Only the task owner can update.",
+                "description": "Partial update — only send fields you want to change. Status: pending, in_progress, completed. Example: update just status without title/description.",
                 "consumes": [
                     "application/json"
                 ],
@@ -389,12 +415,12 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Update payload",
+                        "description": "Status: pending, in_progress, completed",
                         "name": "request",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.UpdateTaskRequest"
+                            "$ref": "#/definitions/dto.UpdateTaskRequest"
                         }
                     }
                 ],
@@ -402,31 +428,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/http.TaskResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -461,19 +475,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/http.SuccessResponse"
+                            "type": "object"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -511,7 +525,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/http.AssignTaskRequest"
+                            "$ref": "#/definitions/dto.AssignTaskRequest"
                         }
                     }
                 ],
@@ -519,31 +533,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/http.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/http.TaskResponse"
-                                        }
-                                    }
-                                }
-                            ]
+                            "type": "object"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/apperror.ErrorResponse"
+                            "type": "object"
                         }
                     }
                 }
@@ -551,34 +553,6 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "apperror.ErrorResponse": {
-            "type": "object",
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "meta": {
-                    "$ref": "#/definitions/apperror.Meta"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "apperror.Meta": {
-            "type": "object",
-            "properties": {
-                "request_id": {
-                    "type": "string"
-                },
-                "timestamp": {
-                    "type": "string"
-                }
-            }
-        },
         "domain.TaskStatus": {
             "type": "string",
             "enum": [
@@ -592,7 +566,7 @@ const docTemplate = `{
                 "TaskStatusCompleted"
             ]
         },
-        "http.AssignTaskRequest": {
+        "dto.AssignTaskRequest": {
             "type": "object",
             "required": [
                 "user_id"
@@ -603,18 +577,7 @@ const docTemplate = `{
                 }
             }
         },
-        "http.AuthResponse": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/http.UserResponse"
-                }
-            }
-        },
-        "http.CreateTaskRequest": {
+        "dto.CreateTaskRequest": {
             "type": "object",
             "required": [
                 "title"
@@ -631,7 +594,20 @@ const docTemplate = `{
                 }
             }
         },
-        "http.LoginRequest": {
+        "dto.JoinTeamRequest": {
+            "type": "object",
+            "required": [
+                "code"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 2
+                }
+            }
+        },
+        "dto.LoginRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -646,42 +622,7 @@ const docTemplate = `{
                 }
             }
         },
-        "http.PaginatedResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "message": {
-                    "type": "string"
-                },
-                "meta": {
-                    "$ref": "#/definitions/apperror.Meta"
-                },
-                "pagination": {
-                    "$ref": "#/definitions/http.PaginationMeta"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.PaginationMeta": {
-            "type": "object",
-            "properties": {
-                "limit": {
-                    "type": "integer"
-                },
-                "page": {
-                    "type": "integer"
-                },
-                "total": {
-                    "type": "integer"
-                },
-                "total_pages": {
-                    "type": "integer"
-                }
-            }
-        },
-        "http.RegisterRequest": {
+        "dto.RegisterRequest": {
             "type": "object",
             "required": [
                 "email",
@@ -703,51 +644,7 @@ const docTemplate = `{
                 }
             }
         },
-        "http.SuccessResponse": {
-            "type": "object",
-            "properties": {
-                "data": {},
-                "message": {
-                    "type": "string"
-                },
-                "meta": {
-                    "$ref": "#/definitions/apperror.Meta"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.TaskResponse": {
-            "type": "object",
-            "properties": {
-                "assignee_id": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "description": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "status": {
-                    "$ref": "#/definitions/domain.TaskStatus"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string"
-                }
-            }
-        },
-        "http.UpdateTaskRequest": {
+        "dto.UpdateTaskRequest": {
             "type": "object",
             "properties": {
                 "description": {
@@ -770,26 +667,6 @@ const docTemplate = `{
                     "type": "string",
                     "maxLength": 255,
                     "minLength": 1
-                }
-            }
-        },
-        "http.UserResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "team_id": {
-                    "type": "string"
                 }
             }
         }

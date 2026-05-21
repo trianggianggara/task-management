@@ -3,11 +3,9 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
 	"task-management/internal/repository"
 )
 
@@ -21,31 +19,33 @@ func NewIdempotencyRepo(db *sqlx.DB) repository.IdempotencyRepository {
 
 func (r *idempotencyRepo) ClaimKey(ctx context.Context, tx *sqlx.Tx, key string, userID string) (bool, *repository.StoredResponse, error) {
 	exec := r.executor(tx)
-	query := `
-		INSERT INTO idempotency_keys (key, user_id, created_at, expires_at)
-		VALUES ($1, $2, NOW(), NOW() + INTERVAL '24 hours')
+
+	insertQuery := `
+		INSERT INTO idempotency_keys (key, user_id, response_status, response_body, created_at, expires_at)
+		VALUES ($1, $2, 0, '{}', NOW(), NOW() + INTERVAL '24 hours')
+		ON CONFLICT (key) DO NOTHING
 	`
-	_, err := exec.ExecContext(ctx, query, key, userID)
-	if err == nil {
+	_, err := exec.ExecContext(ctx, insertQuery, key, userID)
+	if err != nil {
+		return false, nil, fmt.Errorf("idempotencyRepo.ClaimKey insert: %w", err)
+	}
+
+	var cached repository.StoredResponse
+	selectQuery := `
+		SELECT response_status, response_body
+		FROM idempotency_keys
+		WHERE key = $1
+	`
+	err = exec.QueryRowContext(ctx, selectQuery, key).Scan(&cached.Status, &cached.Body)
+	if err != nil {
+		return false, nil, fmt.Errorf("idempotencyRepo.ClaimKey read: %w", err)
+	}
+
+	if cached.Status == 0 {
 		return true, nil, nil
 	}
 
-	var pqErr *pq.Error
-	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-		var cached repository.StoredResponse
-		selectQuery := `
-			SELECT response_status, response_body
-			FROM idempotency_keys
-			WHERE key = $1
-		`
-		err := exec.QueryRowContext(ctx, selectQuery, key).Scan(&cached.Status, &cached.Body)
-		if err != nil {
-			return false, nil, fmt.Errorf("idempotencyRepo.ClaimKey read: %w", err)
-		}
-		return false, &cached, nil
-	}
-
-	return false, nil, fmt.Errorf("idempotencyRepo.ClaimKey: %w", err)
+	return false, &cached, nil
 }
 
 func (r *idempotencyRepo) StoreResponse(ctx context.Context, tx *sqlx.Tx, key string, status int, body string) error {

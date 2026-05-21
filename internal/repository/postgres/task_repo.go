@@ -56,7 +56,7 @@ func (r *taskRepo) FindByUserID(ctx context.Context, userID string, filter repos
 	var conditions []string
 	var args []interface{}
 
-	conditions = append(conditions, "user_id = $1")
+	conditions = append(conditions, "(user_id = $1 OR assignee_id = $1)")
 	args = append(args, userID)
 
 	conditions = append(conditions, "deleted_at IS NULL")
@@ -82,7 +82,7 @@ func (r *taskRepo) FindByUserID(ctx context.Context, userID string, filter repos
 	if filter.Page < 1 {
 		filter.Page = 1
 	}
-	if filter.Limit < 1 || filter.Limit > 100 {
+	if filter.Limit < 1 {
 		filter.Limit = 10
 	}
 	offset := (filter.Page - 1) * filter.Limit

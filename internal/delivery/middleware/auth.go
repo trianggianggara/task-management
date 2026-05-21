@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
-	"task-management/internal/apperror"
+	"task-management/pkg/utils/response"
 )
 
 const (
@@ -21,12 +21,12 @@ func Auth(jwtSecret string) echo.MiddlewareFunc {
 		return func(c echo.Context) error {
 			header := c.Request().Header.Get("Authorization")
 			if header == "" {
-				return apperror.Unauthorized("missing authorization header")
+				return response.Unauthorized("missing authorization header")
 			}
 
 			parts := strings.SplitN(header, " ", 2)
 			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-				return apperror.Unauthorized("invalid authorization format")
+				return response.Unauthorized("invalid authorization format")
 			}
 
 			token, err := jwt.Parse(parts[1], func(t *jwt.Token) (interface{}, error) {
@@ -37,19 +37,19 @@ func Auth(jwtSecret string) echo.MiddlewareFunc {
 			})
 
 			if err != nil || !token.Valid {
-				return apperror.Unauthorized("invalid or expired token")
+				return response.Unauthorized("invalid or expired token")
 			}
 
 			claims, ok := token.Claims.(jwt.MapClaims)
 			if !ok {
-				return apperror.Unauthorized("invalid token claims")
+				return response.Unauthorized("invalid token claims")
 			}
 
 			sub, _ := claims["sub"].(string)
 			teamID, _ := claims["team_id"].(string)
 
 			if sub == "" {
-				return apperror.Unauthorized("invalid token subject")
+				return response.Unauthorized("invalid token subject")
 			}
 
 			c.Set(UserIDKey, sub)

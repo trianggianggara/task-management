@@ -75,3 +75,32 @@ func (r *userRepo) FindByID(ctx context.Context, id string) (*domain.User, error
 	}
 	return user, nil
 }
+
+func (r *userRepo) UpdateTeamID(ctx context.Context, userID string, teamID *string) error {
+	query := `
+		UPDATE users SET team_id = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+	result, err := r.db.ExecContext(ctx, query, teamID, userID)
+	if err != nil {
+		return fmt.Errorf("userRepo.UpdateTeamID: %w", err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *userRepo) FindTeamByCode(ctx context.Context, code string) (*domain.Team, error) {
+	team := &domain.Team{}
+	query := `SELECT id, code, name, created_at FROM teams WHERE code = $1`
+	err := r.db.QueryRowContext(ctx, query, code).Scan(&team.ID, &team.Code, &team.Name, &team.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("userRepo.FindTeamByCode: %w", err)
+	}
+	return team, nil
+}

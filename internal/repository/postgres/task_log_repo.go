@@ -20,7 +20,7 @@ func NewTaskLogRepo(db *sqlx.DB) repository.TaskLogRepository {
 func (r *taskLogRepo) Create(ctx context.Context, tx *sqlx.Tx, log *domain.TaskLog) error {
 	query := `
 		INSERT INTO task_logs (task_id, action, old_value, new_value, changed_by)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3::jsonb, $4::jsonb, $5)
 		RETURNING id, created_at
 	`
 	err := tx.QueryRowContext(ctx, query,

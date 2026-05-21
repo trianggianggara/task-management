@@ -7,7 +7,7 @@ import (
 	"runtime/debug"
 
 	"github.com/labstack/echo/v4"
-	"task-management/internal/apperror"
+	"task-management/pkg/utils/response"
 )
 
 func ErrorHandler(err error, c echo.Context) {
@@ -15,15 +15,15 @@ func ErrorHandler(err error, c echo.Context) {
 		return
 	}
 
-	var appErr *apperror.AppError
+	var appErr *response.APIError
 
 	switch e := err.(type) {
-	case *apperror.AppError:
+	case *response.APIError:
 		appErr = e
 	case *echo.HTTPError:
 		appErr = httpErrorToAppError(e)
 	default:
-		appErr = apperror.Internal("internal server error", err)
+		appErr = response.Internal("internal server error", err)
 	}
 
 	if appErr.Status >= 500 {
@@ -36,19 +36,17 @@ func ErrorHandler(err error, c echo.Context) {
 		)
 	}
 
-	resp := apperror.ToErrorResponse(appErr)
-	resp.Meta = apperror.NewMeta(GetRequestID(c))
-	c.JSON(appErr.Status, resp)
+	response.SendError(c, appErr.Code, appErr.Message, appErr.Status)
 }
 
-func httpErrorToAppError(e *echo.HTTPError) *apperror.AppError {
+func httpErrorToAppError(e *echo.HTTPError) *response.APIError {
 	code := httpStatusToCode(e.Code)
 	message := fmt.Sprintf("%v", e.Message)
 
 	if e.Internal != nil {
-		return &apperror.AppError{Code: code, Message: message, Status: e.Code, Err: e.Internal}
+		return &response.APIError{Code: code, Message: message, Status: e.Code, Err: e.Internal}
 	}
-	return &apperror.AppError{Code: code, Message: message, Status: e.Code}
+	return &response.APIError{Code: code, Message: message, Status: e.Code}
 }
 
 func httpStatusToCode(status int) string {
@@ -95,7 +93,7 @@ func Recover() echo.MiddlewareFunc {
 						"panic", fmt.Sprintf("%v", r),
 						"stack", stack,
 					)
-					c.Error(apperror.Internal("internal server error", fmt.Errorf("panic: %v", r)))
+					c.Error(response.Internal("internal server error", fmt.Errorf("panic: %v", r)))
 				}
 			}()
 			return next(c)
