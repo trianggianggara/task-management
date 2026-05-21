@@ -28,8 +28,6 @@ curl http://localhost:8080/api/v1/health
 open http://localhost:8080/swagger/index.html
 ```
 
-## Manual Setup
-
 ```bash
 # 1. Start PostgreSQL
 # 2. Configure environment
@@ -114,7 +112,7 @@ pkg/utils/
 
 ```json
 // Success
-{"success":true,"status":201,"message":"User registered","data":{...},"request_id":"...","timestamp":"..."}
+{"success":true,"status":200,"message":"Login successful","data":{...},"request_id":"...","timestamp":"..."}
 
 // Error
 {"success":false,"status":404,"code":"NOT_FOUND","message":"task not found","timestamp":"...","request_id":"..."}
@@ -122,6 +120,18 @@ pkg/utils/
 // Paginated
 {"success":true,"status":200,"message":"Tasks retrieved","data":[...],"meta":{"page":1,"page_size":10,"total_items":42,"total_pages":5},"request_id":"...","timestamp":"..."}
 ```
+
+## Database Design
+
+| Table | Purpose | Key Columns |
+|-------|---------|------------|
+| `teams` | User groups (join by code) | id PK, code UNIQUE, name |
+| `users` | Auth & ownership | id PK, email UNIQUE, password_hash, team_id FK |
+| `tasks` | Task data (soft delete) | id PK, user_id FK (reporter), assignee_id FK, title, status ENUM |
+| `idempotency_keys` | Safe retry (24h TTL) | key PK, user_id FK, response_body JSONB |
+| `task_logs` | Audit trail | id PK, task_id FK, action, old_value JSONB, new_value JSONB |
+
+See [docs/database-design.svg](docs/database-design.svg) for full schema with indexes and relationships.
 
 ## Environment Variables
 
