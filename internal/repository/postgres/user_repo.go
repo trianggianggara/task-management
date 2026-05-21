@@ -2,6 +2,9 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/jmoiron/sqlx"
 	"task-management/internal/domain"
@@ -16,15 +19,21 @@ func NewUserRepo(db *sqlx.DB) repository.UserRepository {
 	return &userRepo{db: db}
 }
 
+var ErrNotFound = errors.New("record not found")
+
 func (r *userRepo) Create(ctx context.Context, user *domain.User) error {
 	query := `
 		INSERT INTO users (email, password_hash, name, team_id)
 		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at, updated_at
 	`
-	return r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRowContext(ctx, query,
 		user.Email, user.PasswordHash, user.Name, user.TeamID,
 	).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+	if err != nil {
+		return fmt.Errorf("userRepo.Create: %w", err)
+	}
+	return nil
 }
 
 func (r *userRepo) FindByEmail(ctx context.Context, email string) (*domain.User, error) {
@@ -38,8 +47,11 @@ func (r *userRepo) FindByEmail(ctx context.Context, email string) (*domain.User,
 		&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.TeamID,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userRepo.FindByEmail: %w", err)
 	}
 	return user, nil
 }
@@ -55,8 +67,11 @@ func (r *userRepo) FindByID(ctx context.Context, id string) (*domain.User, error
 		&user.ID, &user.Email, &user.PasswordHash, &user.Name, &user.TeamID,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("userRepo.FindByID: %w", err)
 	}
 	return user, nil
 }

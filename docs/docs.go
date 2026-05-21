@@ -175,9 +175,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
-                },
-                "timestamp": {
-                    "type": "string"
                 }
             }
         },

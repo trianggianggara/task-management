@@ -2,8 +2,6 @@ package usecase
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
@@ -37,7 +35,7 @@ func NewAuthUsecase(userRepo repository.UserRepository, hasher password.Hasher, 
 
 func (uc *authUsecase) Register(ctx context.Context, name, email, password string) (*domain.User, string, error) {
 	existing, err := uc.userRepo.FindByEmail(ctx, email)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil {
 		return nil, "", apperror.Internal("failed to check email", err)
 	}
 	if existing != nil {
@@ -70,10 +68,10 @@ func (uc *authUsecase) Register(ctx context.Context, name, email, password strin
 func (uc *authUsecase) Login(ctx context.Context, email, password string) (string, error) {
 	user, err := uc.userRepo.FindByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", apperror.Unauthorized("invalid email or password")
-		}
 		return "", apperror.Internal("failed to find user", err)
+	}
+	if user == nil {
+		return "", apperror.Unauthorized("invalid email or password")
 	}
 
 	if err := uc.hasher.Verify(password, user.PasswordHash); err != nil {
@@ -97,8 +95,6 @@ func (uc *authUsecase) generateJWT(userID string, teamID *string) (string, error
 	}
 	if teamID != nil {
 		claims["team_id"] = *teamID
-	} else {
-		claims["team_id"] = ""
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

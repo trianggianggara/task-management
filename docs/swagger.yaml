@@ -9,8 +9,6 @@ definitions:
         $ref: '#/definitions/apperror.Meta'
       status:
         type: string
-      timestamp:
-        type: string
     type: object
   apperror.Meta:
     properties:

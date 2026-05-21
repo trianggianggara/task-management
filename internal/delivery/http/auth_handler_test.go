@@ -2,7 +2,6 @@ package http_test
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +32,7 @@ func (s *stubUserRepo) FindByEmail(ctx context.Context, email string) (*domain.U
 	if email == "test@example.com" {
 		return &domain.User{ID: "user-1", Email: email, PasswordHash: "$2a$12$hashed"}, nil
 	}
-	return nil, sql.ErrNoRows
+	return nil, nil
 }
 
 func (s *stubUserRepo) FindByID(ctx context.Context, id string) (*domain.User, error) {
@@ -204,6 +203,9 @@ func TestUnauthenticatedRequest(t *testing.T) {
 
 	protected := e.Group("/api/v1/tasks")
 	protected.Use(appMiddleware.Auth("test-secret"))
+	protected.GET("", func(c echo.Context) error {
+		return c.String(http.StatusOK, "ok")
+	})
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil)
 	rec := httptest.NewRecorder()

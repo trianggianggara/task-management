@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -15,21 +16,21 @@ type Config struct {
 	Environment string
 }
 
-func Load() *Config {
+func Load() (*Config, error) {
 	env := getEnv("ENVIRONMENT", "development")
 
-	expiryHours, err := strconv.Atoi(getEnv("JWT_EXPIRY_HOURS", "24"))
+	expiryHoursStr := getEnv("JWT_EXPIRY_HOURS", "24")
+	expiryHours, err := strconv.Atoi(expiryHoursStr)
 	if err != nil || expiryHours < 1 {
-		slog.Warn("invalid JWT_EXPIRY_HOURS, using default 24", "value", getEnv("JWT_EXPIRY_HOURS", "24"))
+		slog.Warn("invalid JWT_EXPIRY_HOURS, using default 24", "value", expiryHoursStr)
 		expiryHours = 24
 	}
 
 	jwtSecret := getEnv("JWT_SECRET", "")
-	if jwtSecret == "" && env == "production" {
-		slog.Error("JWT_SECRET is required in production")
-		os.Exit(1)
-	}
 	if jwtSecret == "" {
+		if env == "production" {
+			return nil, fmt.Errorf("JWT_SECRET is required in production environment")
+		}
 		jwtSecret = "change-me-in-production"
 		slog.Warn("JWT_SECRET not set, using insecure default — do NOT use in production")
 	}
@@ -40,7 +41,7 @@ func Load() *Config {
 		JWTExpiry:   time.Duration(expiryHours) * time.Hour,
 		AppPort:     getEnv("APP_PORT", "8080"),
 		Environment: env,
-	}
+	}, nil
 }
 
 func getEnv(key, fallback string) string {

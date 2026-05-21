@@ -40,7 +40,11 @@ import (
 // @description Type "Bearer" followed by a space and JWT token.
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		slog.Error("failed to load config", "error", err)
+		os.Exit(1)
+	}
 
 	db, err := postgres.Connect(cfg.DatabaseURL)
 	if err != nil {
@@ -115,6 +119,8 @@ func runMigrations(dsn string) {
 		slog.Error("migration init failed", "error", err)
 		os.Exit(1)
 	}
+	defer m.Close()
+
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		slog.Error("migration failed", "error", err)
 		os.Exit(1)

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -312,6 +313,36 @@ func TestRecover_Middleware_NoPanicPassesThrough(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "all good", rec.Body.String())
+}
+
+func TestAuth_Middleware_ValidToken_SetsContext(t *testing.T) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub":     "user-1",
+		"team_id": "team-1",
+		"exp":     time.Now().Add(time.Hour).Unix(),
+		"iat":     time.Now().Unix(),
+	})
+	tokenStr, err := token.SignedString([]byte("test-secret"))
+	require.NoError(t, err)
+
+	e := echo.New()
+	e.HTTPErrorHandler = appMiddleware.ErrorHandler
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenStr)
+	rec := httptest.NewRecorder()
+	c := e.NewContext(req, rec)
+
+	var capturedUserID, capturedTeamID string
+	handler := appMiddleware.Auth("test-secret")(func(c echo.Context) error {
+		capturedUserID = appMiddleware.GetUserID(c)
+		capturedTeamID = appMiddleware.GetTeamID(c)
+		return c.String(http.StatusOK, "ok")
+	})
+
+	err = handler(c)
+	require.NoError(t, err)
+	assert.Equal(t, "user-1", capturedUserID)
+	assert.Equal(t, "team-1", capturedTeamID)
 }
 
 func TestAuth_Middleware_ReturnsAppError_NoHeader(t *testing.T) {

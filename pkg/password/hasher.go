@@ -10,15 +10,15 @@ type Hasher interface {
 }
 
 type BcryptHasher struct {
-	Cost int
+	cost int
 }
 
 func NewBcryptHasher() Hasher {
-	return &BcryptHasher{Cost: 12}
+	return &BcryptHasher{cost: 12}
 }
 
 func (h *BcryptHasher) Hash(plain string) (string, error) {
-	bytes, err := bcrypt.GenerateFromPassword([]byte(plain), h.Cost)
+	bytes, err := bcrypt.GenerateFromPassword([]byte(plain), h.cost)
 	if err != nil {
 		return "", err
 	}

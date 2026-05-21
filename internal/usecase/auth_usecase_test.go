@@ -2,7 +2,6 @@ package usecase_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 
@@ -46,7 +45,7 @@ func (m *mockPasswordHasher) Verify(plain, hashed string) error {
 func TestRegister_Success(t *testing.T) {
 	userRepo := &mockUserRepo{
 		findByEmailFunc: func(ctx context.Context, email string) (*domain.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, nil
 		},
 		createFunc: func(ctx context.Context, user *domain.User) error {
 			user.ID = "user-1"
@@ -154,7 +153,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 func TestLogin_UserNotFound(t *testing.T) {
 	userRepo := &mockUserRepo{
 		findByEmailFunc: func(ctx context.Context, email string) (*domain.User, error) {
-			return nil, sql.ErrNoRows
+			return nil, nil
 		},
 	}
 
