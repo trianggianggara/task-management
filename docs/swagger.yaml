@@ -17,12 +17,41 @@ definitions:
       timestamp:
         type: string
     type: object
+  domain.TaskStatus:
+    enum:
+    - pending
+    - in_progress
+    - completed
+    type: string
+    x-enum-varnames:
+    - TaskStatusPending
+    - TaskStatusInProgress
+    - TaskStatusCompleted
+  http.AssignTaskRequest:
+    properties:
+      user_id:
+        type: string
+    required:
+    - user_id
+    type: object
   http.AuthResponse:
     properties:
       token:
         type: string
       user:
         $ref: '#/definitions/http.UserResponse'
+    type: object
+  http.CreateTaskRequest:
+    properties:
+      description:
+        maxLength: 1000
+        type: string
+      title:
+        maxLength: 255
+        minLength: 1
+        type: string
+    required:
+    - title
     type: object
   http.LoginRequest:
     properties:
@@ -33,6 +62,29 @@ definitions:
     required:
     - email
     - password
+    type: object
+  http.PaginatedResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      meta:
+        $ref: '#/definitions/apperror.Meta'
+      pagination:
+        $ref: '#/definitions/http.PaginationMeta'
+      status:
+        type: string
+    type: object
+  http.PaginationMeta:
+    properties:
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
     type: object
   http.RegisterRequest:
     properties:
@@ -58,6 +110,42 @@ definitions:
       meta:
         $ref: '#/definitions/apperror.Meta'
       status:
+        type: string
+    type: object
+  http.TaskResponse:
+    properties:
+      assignee_id:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      status:
+        $ref: '#/definitions/domain.TaskStatus'
+      title:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: string
+    type: object
+  http.UpdateTaskRequest:
+    properties:
+      description:
+        maxLength: 1000
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/domain.TaskStatus'
+        enum:
+        - pending
+        - in_progress
+        - completed
+      title:
+        maxLength: 255
+        minLength: 1
         type: string
     type: object
   http.UserResponse:
@@ -169,6 +257,245 @@ paths:
       summary: Register new user
       tags:
       - auth
+  /api/v1/tasks:
+    get:
+      consumes:
+      - application/json
+      description: List tasks with optional filtering by status, search by title,
+        and pagination
+      parameters:
+      - description: Filter by status (pending, in_progress, completed)
+        in: query
+        name: status
+        type: string
+      - description: Search by title
+        in: query
+        name: search
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.PaginatedResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/http.TaskResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List tasks
+      tags:
+      - tasks
+    post:
+      consumes:
+      - application/json
+      description: Create a new task with optional idempotency key for safe retries
+      parameters:
+      - description: Idempotency key (UUID v4)
+        in: header
+        name: Idempotency-Key
+        type: string
+      - description: Create task payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.CreateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/http.TaskResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Soft-delete a task. Only the task owner can delete.
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/http.SuccessResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete task
+      tags:
+      - tasks
+    get:
+      consumes:
+      - application/json
+      description: Get a single task by ID
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/http.TaskResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get task
+      tags:
+      - tasks
+    put:
+      consumes:
+      - application/json
+      description: Update task fields (title, description, status). Only the task
+        owner can update.
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.UpdateTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/http.TaskResponse'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update task
+      tags:
+      - tasks
+  /api/v1/tasks/{id}/assign:
+    post:
+      consumes:
+      - application/json
+      description: Assign a task to another user in the same team. Single database
+        transaction.
+      parameters:
+      - description: Task ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Assign payload
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/http.AssignTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/http.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/http.TaskResponse'
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/apperror.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign task
+      tags:
+      - tasks
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

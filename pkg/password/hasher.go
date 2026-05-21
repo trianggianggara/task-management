@@ -1,6 +1,8 @@
 package password
 
 import (
+	"fmt"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -13,8 +15,11 @@ type BcryptHasher struct {
 	cost int
 }
 
-func NewBcryptHasher() Hasher {
-	return &BcryptHasher{cost: 12}
+func NewBcryptHasher(cost int) (Hasher, error) {
+	if cost < 4 || cost > 31 {
+		return nil, fmt.Errorf("bcrypt cost must be between 4 and 31, got %d", cost)
+	}
+	return &BcryptHasher{cost: cost}, nil
 }
 
 func (h *BcryptHasher) Hash(plain string) (string, error) {

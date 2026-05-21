@@ -9,7 +9,8 @@ import (
 )
 
 func TestBcryptHasher_Hash_and_Verify(t *testing.T) {
-	h := password.NewBcryptHasher()
+	h, err := password.NewBcryptHasher(12)
+	require.NoError(t, err)
 
 	plain := "my-secret-password"
 	hashed, err := h.Hash(plain)
@@ -22,7 +23,8 @@ func TestBcryptHasher_Hash_and_Verify(t *testing.T) {
 }
 
 func TestBcryptHasher_Verify_WrongPassword(t *testing.T) {
-	h := password.NewBcryptHasher()
+	h, err := password.NewBcryptHasher(12)
+	require.NoError(t, err)
 
 	hashed, err := h.Hash("correct")
 	require.NoError(t, err)
@@ -32,8 +34,17 @@ func TestBcryptHasher_Verify_WrongPassword(t *testing.T) {
 }
 
 func TestBcryptHasher_Verify_TamperedHash(t *testing.T) {
-	h := password.NewBcryptHasher()
+	h, err := password.NewBcryptHasher(12)
+	require.NoError(t, err)
 
-	err := h.Verify("anything", "not-a-valid-bcrypt-hash")
+	err = h.Verify("anything", "not-a-valid-bcrypt-hash")
+	assert.Error(t, err)
+}
+
+func TestBcryptHasher_InvalidCost(t *testing.T) {
+	_, err := password.NewBcryptHasher(0)
+	assert.Error(t, err)
+
+	_, err = password.NewBcryptHasher(32)
 	assert.Error(t, err)
 }

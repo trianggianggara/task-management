@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"task-management/internal/apperror"
 )
 
-func RateLimiter() echo.MiddlewareFunc {
+func RateLimiter(ctx context.Context, rps, burst int) echo.MiddlewareFunc {
 	type client struct {
 		limiter  *rate.Limiter
 		lastSeen time.Time
@@ -22,14 +23,20 @@ func RateLimiter() echo.MiddlewareFunc {
 
 	go func() {
 		ticker := time.NewTicker(time.Minute)
-		for range ticker.C {
-			mu.Lock()
-			for ip, cl := range clients {
-				if time.Since(cl.lastSeen) > 3*time.Minute {
-					delete(clients, ip)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				mu.Lock()
+				for ip, cl := range clients {
+					if time.Since(cl.lastSeen) > 3*time.Minute {
+						delete(clients, ip)
+					}
 				}
+				mu.Unlock()
 			}
-			mu.Unlock()
 		}
 	}()
 
@@ -40,7 +47,7 @@ func RateLimiter() echo.MiddlewareFunc {
 			mu.Lock()
 			cl, exists := clients[ip]
 			if !exists {
-				cl = &client{limiter: rate.NewLimiter(5, 10)}
+				cl = &client{limiter: rate.NewLimiter(rate.Limit(rps), burst)}
 				clients[ip] = cl
 			}
 			cl.lastSeen = time.Now()

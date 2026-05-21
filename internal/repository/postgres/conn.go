@@ -5,12 +5,12 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func Connect(dsn string) (*sqlx.DB, error) {
+func Connect(dsn string, maxOpen, maxIdle int) (*sqlx.DB, error) {
 	db, err := sqlx.Connect("postgres", dsn)
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(25)
-	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(maxOpen)
+	db.SetMaxIdleConns(maxIdle)
 	return db, nil
 }

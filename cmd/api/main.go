@@ -46,7 +46,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := postgres.Connect(cfg.DatabaseURL)
+	db, err := postgres.Connect(cfg.DatabaseURL, cfg.DBMaxOpenConns, cfg.DBMaxIdleConns)
 	if err != nil {
 		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
@@ -57,12 +57,21 @@ func main() {
 	runMigrations(cfg.DatabaseURL)
 
 	userRepo := postgres.NewUserRepo(db)
+	taskRepo := postgres.NewTaskRepo(db)
+	idempotencyRepo := postgres.NewIdempotencyRepo(db)
+	taskLogRepo := postgres.NewTaskLogRepo(db)
 
-	hasher := password.NewBcryptHasher()
+	hasher, err := password.NewBcryptHasher(cfg.BcryptCost)
+	if err != nil {
+		slog.Error("failed to create password hasher", "error", err)
+		os.Exit(1)
+	}
 
 	authUC := usecase.NewAuthUsecase(userRepo, hasher, cfg.JWTSecret, cfg.JWTExpiry)
+	taskUC := usecase.NewTaskUsecase(db, taskRepo, idempotencyRepo, taskLogRepo, userRepo)
 
 	authHandler := handler.NewAuthHandler(authUC)
+	taskHandler := handler.NewTaskHandler(taskUC)
 
 	e := echo.New()
 	e.HideBanner = true
@@ -71,6 +80,7 @@ func main() {
 	e.Use(appMiddleware.RequestID())
 	e.Use(appMiddleware.Logger())
 	e.Use(appMiddleware.Recover())
+	e.Use(appMiddleware.BodyLimit(cfg.BodyLimitBytes))
 	e.Use(corsMiddleware())
 	e.HTTPErrorHandler = appMiddleware.ErrorHandler
 
@@ -87,9 +97,28 @@ func main() {
 	})
 
 	auth := e.Group("/api/v1/auth")
-	auth.Use(appMiddleware.RateLimiter())
+	auth.Use(appMiddleware.RateLimiter(context.Background(), cfg.RateLimitRPS, cfg.RateLimitBurst))
 	auth.POST("/register", authHandler.Register)
 	auth.POST("/login", authHandler.Login)
+
+	tasks := e.Group("/api/v1/tasks")
+	tasks.Use(appMiddleware.Auth(cfg.JWTSecret))
+	tasks.POST("", taskHandler.Create)
+	tasks.GET("", taskHandler.List)
+	tasks.GET("/:id", taskHandler.Get)
+	tasks.PUT("/:id", taskHandler.Update)
+	tasks.DELETE("/:id", taskHandler.Delete)
+	tasks.POST("/:id/assign", taskHandler.Assign)
+
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := idempotencyRepo.PurgeExpired(context.Background()); err != nil {
+				slog.Warn("failed to purge expired idempotency keys", "error", err)
+			}
+		}
+	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

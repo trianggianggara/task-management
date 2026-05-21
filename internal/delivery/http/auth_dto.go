@@ -1,6 +1,8 @@
 package http
 
 import (
+	"time"
+
 	"task-management/internal/domain"
 )
 
@@ -29,11 +31,15 @@ type UserResponse struct {
 }
 
 func ToUserResponse(u *domain.User) UserResponse {
+	createdAt := ""
+	if !u.CreatedAt.IsZero() {
+		createdAt = u.CreatedAt.UTC().Format(time.RFC3339)
+	}
 	return UserResponse{
 		ID:        u.ID,
 		Email:     u.Email,
 		Name:      u.Name,
 		TeamID:    u.TeamID,
-		CreatedAt: u.CreatedAt.UTC().Format("2006-01-02T15:04:05Z"),
+		CreatedAt: createdAt,
 	}
 }

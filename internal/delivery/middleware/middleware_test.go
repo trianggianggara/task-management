@@ -2,6 +2,7 @@ package middleware_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -391,7 +392,7 @@ func TestRateLimiter_ReturnsAppError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.10")
 
-	handler := appMiddleware.RateLimiter()(func(c echo.Context) error {
+	handler := appMiddleware.RateLimiter(context.Background(), 5, 10)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -417,7 +418,7 @@ func TestRateLimiter_AllowsWithinLimit(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.11")
 
-	handler := appMiddleware.RateLimiter()(func(c echo.Context) error {
+	handler := appMiddleware.RateLimiter(context.Background(), 5, 10)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -433,7 +434,7 @@ func TestRateLimiter_AllowsWithinLimit(t *testing.T) {
 func TestRateLimiter_SeparatePerIP(t *testing.T) {
 	e := echo.New()
 
-	handler := appMiddleware.RateLimiter()(func(c echo.Context) error {
+	handler := appMiddleware.RateLimiter(context.Background(), 5, 10)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
@@ -464,7 +465,7 @@ func TestRateLimiter_SeparatePerIP(t *testing.T) {
 func TestRateLimiter_ConcurrentRequests(t *testing.T) {
 	e := echo.New()
 
-	handler := appMiddleware.RateLimiter()(func(c echo.Context) error {
+	handler := appMiddleware.RateLimiter(context.Background(), 5, 10)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "ok")
 	})
 
