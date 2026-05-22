@@ -173,38 +173,48 @@ func (uc *taskUsecase) GetTask(ctx context.Context, userID, id string) (*domain.
 }
 
 func (uc *taskUsecase) UpdateTask(ctx context.Context, userID, id string, input UpdateTaskInput) (*domain.Task, error) {
-	task, err := uc.taskRepo.FindByID(ctx, id)
-	if err != nil {
-		return nil, response.Internal("failed to get task", err)
-	}
-	if task == nil {
-		return nil, response.NotFound("task not found")
-	}
+	var updatedTask *domain.Task
 
-	isOwner := task.UserID == userID
-	isAssignee := task.AssigneeID != nil && *task.AssigneeID == userID
-	if !isOwner && !isAssignee {
-		return nil, response.Forbidden("you can only update your own tasks")
-	}
-
-	if input.Title != nil {
-		task.Title = *input.Title
-	}
-	if input.Description != nil {
-		task.Description = *input.Description
-	}
-	if input.Status != nil {
-		if !input.Status.Valid() {
-			return nil, response.ValidationError("invalid task status")
+	err := uc.txManager.Run(ctx, func(tx *sqlx.Tx) error {
+		task, err := uc.taskRepo.FindByIDForUpdate(ctx, tx, id)
+		if err != nil {
+			return response.Internal("failed to get task", err)
 		}
-		task.Status = *input.Status
+		if task == nil {
+			return response.NotFound("task not found")
+		}
+
+		isOwner := task.UserID == userID
+		isAssignee := task.AssigneeID != nil && *task.AssigneeID == userID
+		if !isOwner && !isAssignee {
+			return response.Forbidden("you can only update your own tasks")
+		}
+
+		if input.Title != nil {
+			task.Title = *input.Title
+		}
+		if input.Description != nil {
+			task.Description = *input.Description
+		}
+		if input.Status != nil {
+			if !input.Status.Valid() {
+				return response.ValidationError("invalid task status")
+			}
+			task.Status = *input.Status
+		}
+
+		if err := uc.taskRepo.Update(ctx, tx, task); err != nil {
+			return response.Internal("failed to update task", err)
+		}
+
+		updatedTask = task
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	if err := uc.taskRepo.Update(ctx, nil, task); err != nil {
-		return nil, response.Internal("failed to update task", err)
-	}
-
-	return task, nil
+	return updatedTask, nil
 }
 
 func (uc *taskUsecase) DeleteTask(ctx context.Context, userID, id string) error {
